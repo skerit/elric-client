@@ -1,0 +1,7 @@
+node_modules
+*.komodo*
+public/bootstrap
+public/stylesheets
+local.js
+settings/*
+clientfiles/*
