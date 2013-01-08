@@ -19,11 +19,13 @@ client.ioqueue = [];
 client.flat = new flat('settings');
 //client.capabilities = client.flat.getSync('capabilities');
 client.capabilities = {};
+client.settings = {}; // These are sent to us from the server
 client.transfer = {};
 client.transfer.ready = false;
 client.transfer.amount = 0;
 client.transfer.done = 0;
 client.transfer.files = {};
+
 
 /**
  * Send data to the server,
@@ -34,12 +36,14 @@ client.transfer.files = {};
  */
 client.submit = function (message, type) {
 	
-	if (type === undefined) type = 'clientdata';
+	if (type === undefined) type = 'data';
+	
+	var packet = {type: type, message: message};
 	
 	if (client.connected) {
-		client.socket.emit(type, message);
+		client.socket.emit('client', packet);
 	} else {
-		client.ioqueue.push({type: type, message: message});
+		client.ioqueue.push(packet);
 	}
 }
 
@@ -53,11 +57,10 @@ client.login = function () {
 	
 	var auth = {
 		'login': client.name,
-		'key': local.key,
-		'capabilities': client.capabilities
+		'key': local.key
 	}
 	
-	client.submit(auth, 'clientlogin');
+	client.submit(auth, 'login');
 }
 
 client.socket.on('connect', function(socket) {
@@ -80,9 +83,17 @@ client.socket.on('notifyTransfer', function (data) {
 	client.transfer.files = data.capabilities;
 	client.transfer.ready = true;
 	
-	client.submit('go', 'readyForTransfer');
+	client.submit('go', 'readyForSettings');
 });
 
+/**
+ * Handle file data
+ *
+ * @author   Jelle De Loecker   <jelle@kipdola.be>
+ * @since    2013.01.07
+ * @version  2013.01.07
+ *
+ */
 client.socket.on('file', function (file) {
 
 	if (file.type == 'clientfile') {
@@ -101,14 +112,38 @@ client.socket.on('file', function (file) {
 				
 				// File transfers are done, now we can initialize those files
 				for (var capname in client.transfer.files) {
-					client.capabilities[capname] = require('./clientfiles/' + capname)(client);
+					
+					var loadCapability = false;
+					
+					// Only initialize if the capability has been enabled!
+					if (client.settings[capname] !== undefined) {
+						loadCapability = client.settings[capname].enabled;
+					}
+					
+					if (loadCapability) client.capabilities[capname] = require('./clientfiles/' + capname)(client);
 				}
 				
+				// Now we can send the started signal
 				client.event.emit('start');
+				client.submit('started', 'started');
 			}
 			
 		});
 	}
+});
+
+/**
+ * Handle capability settings
+ * When this has finished, the server can send files
+ *
+ * @author   Jelle De Loecker   <jelle@kipdola.be>
+ * @since    2013.01.09
+ * @version  2013.01.09
+ *
+ */
+client.socket.on('settings', function (settings) {
+	client.settings = settings;
+	client.submit('go', 'readyForTransfer');
 });
 
 client.socket.on('disconnect', function () {
