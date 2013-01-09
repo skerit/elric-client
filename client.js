@@ -58,8 +58,9 @@ $.expr[':'].regex = function(elem, index, match) {
  * @since    2013.01.05
  * @version  2013.01.09
  */
-client.submit = function (message, type, filter) {
+client.submit = function (type, message, filter) {
 	
+	if (message === undefined) message = true;
 	if (type === undefined) type = 'data';
 	if (filter === undefined) filter = false;
 	
@@ -82,8 +83,8 @@ client.submit = function (message, type, filter) {
  * @returns    {function}        The submit function
  */
 client.filteredSubmit = function (filter) {
-	return function filteredSubmit (message, type) {
-		client.submit(message, type, filter);
+	return function filteredSubmit (type, message) {
+		client.submit(type, message, filter);
 	}
 }
 
@@ -100,7 +101,7 @@ client.login = function () {
 		'key': local.key
 	}
 	
-	client.submit(auth, 'login');
+	client.submit('login', auth);
 }
 
 client.socket.on('connect', function(socket) {
@@ -123,7 +124,7 @@ client.socket.on('notifyTransfer', function (data) {
 	client.transfer.files = data.capabilities;
 	client.transfer.ready = true;
 	
-	client.submit('go', 'readyForSettings');
+	client.submit('readyForSettings');
 });
 
 /**
@@ -135,7 +136,7 @@ client.socket.on('notifyTransfer', function (data) {
  *
  */
 client.socket.on('file', function (file) {
-
+console.log('Receiving file');
 	if (file.type == 'clientfile') {
 
 		fs.writeFile('./clientfiles/' + file.name + '.js', file.data, function(err){
@@ -165,7 +166,7 @@ client.socket.on('file', function (file) {
 				
 				// Now we can send the started signal
 				client.event.emit('start');
-				client.submit('started', 'started');
+				client.submit('started');
 			}
 			
 		});
@@ -183,7 +184,7 @@ client.socket.on('file', function (file) {
  */
 client.socket.on('settings', function (settings) {
 	client.settings = settings;
-	client.submit('go', 'readyForTransfer');
+	client.submit('readyForTransfer');
 });
 
 client.socket.on('disconnect', function () {
