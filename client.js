@@ -29,6 +29,7 @@ client.transfer.done = 0;
 client.transfer.files = {};
 client.jQuery = $;
 client.$ = $;
+client.local = local;
 
 /**
  * Add a jQuery regex expression
