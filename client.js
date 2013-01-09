@@ -6,6 +6,8 @@ var async = require('async');
 var io = require('socket.io-client');
 var os = require('os');
 var fs = require('fs');
+var jQuery = require('jquery');
+var $ = jQuery;
 var local = require('./local');
 var flat = require('./flat');
 
@@ -25,6 +27,27 @@ client.transfer.ready = false;
 client.transfer.amount = 0;
 client.transfer.done = 0;
 client.transfer.files = {};
+client.jQuery = $;
+client.$ = $;
+
+/**
+ * Add a jQuery regex expression
+ *
+ * @author   James Padolsey   http://james.padolsey.com/
+ * @since    2013.01.09
+ */
+$.expr[':'].regex = function(elem, index, match) {
+	var matchParams = match[3].split(','),
+			validLabels = /^(data|css):/,
+			attr = {
+					method: matchParams[0].match(validLabels) ? 
+					        matchParams[0].split(':')[0] : 'attr',
+					property: matchParams.shift().replace(validLabels,'')
+			},
+			regexFlags = 'ig',
+			regex = new RegExp(matchParams.join('').replace(/^\s+|\s+$/g,''), regexFlags);
+	return regex.test(jQuery(elem)[attr.method](attr.property));
+}
 
 
 /**
@@ -33,17 +56,34 @@ client.transfer.files = {};
  *
  * @author   Jelle De Loecker   <jelle@kipdola.be>
  * @since    2013.01.05
+ * @version  2013.01.09
  */
-client.submit = function (message, type) {
+client.submit = function (message, type, filter) {
 	
 	if (type === undefined) type = 'data';
+	if (filter === undefined) filter = false;
 	
-	var packet = {type: type, message: message};
+	var packet = {type: type, message: message, filter: filter};
 	
 	if (client.connected) {
 		client.socket.emit('client', packet);
 	} else {
 		client.ioqueue.push(packet);
+	}
+}
+
+/**
+ * Return a submit function that automatically adds a filter
+ *
+ * @author   Jelle De Loecker   <jelle@kipdola.be>
+ * @since    2013.01.09
+ * @version  2013.01.09
+ *
+ * @returns    {function}        The submit function
+ */
+client.filteredSubmit = function (filter) {
+	return function filteredSubmit (message, type) {
+		client.submit(message, type, filter);
 	}
 }
 
