@@ -178,7 +178,6 @@ client.moveFile = function moveFile (source, destination, filter, callback) {
  * @version  2013.01.13
  */
 client.socket.on('requestFile', function (sourcepath, destination) {
-	console.log('A file is being requested from the server ...');
 	client.moveFile({type: 'path', path: sourcepath, direct: true}, destination);
 });
 
