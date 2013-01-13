@@ -8,10 +8,20 @@ var os = require('os');
 var fs = require('fs');
 var jQuery = require('jquery');
 var $ = jQuery;
+var mv = require('mv');
+var base64 = require('base64js');
 var local = require('./local');
 var flat = require('./flat');
 
-var client = {}
+// The client object we pass around
+var client = {};
+
+// Store required tools in here
+client.tools = {};
+client.tools.fs = fs;
+client.tools.mv = mv;
+client.tools.base64 = base64;
+
 client.connected = false;
 client.socket = io.connect(local.server + ':' + local.serverport, {reconnect: true});
 client.name = os.hostname();
@@ -105,7 +115,74 @@ client.login = function () {
 	client.submit('login', auth);
 }
 
-client.socket.on('connect', function(socket) {
+/**
+ * Move 2 files
+ *
+ * @author   Jelle De Loecker   <jelle@kipdola.be>
+ * @since    2013.01.13
+ * @version  2013.01.13
+ *
+ * @param    {object}   source        The source object
+ * @param    {object}   destination   The destination object
+ * @param    {string}   filter        The filter
+ * @param    {function} callback
+ */
+client.moveFile = function moveFile (source, destination, filter, callback) {
+ 
+	/**
+	 * File packet structure:
+	 * type: base64 | path
+	 * data: the base64 string
+	 * path: the path, if it exists
+	 * socket: (destination) socket
+	 * direct: requestFile request get this set, the server should just move it
+	 */
+	
+	if (source.type == 'base64') {
+		if (destination.type == 'path') {
+			// Decode the base64 data to the destination
+			client.tools.base64.decode(source.data, destination.path, function (err) {
+				if (callback) callback(err);
+			});
+		}
+	} else if (source.type == 'path') {
+		
+		// Send a source file to a destination socket by base64 encoding it
+		if (destination.type == 'base64' || destination.type == 'server') {
+			
+			client.tools.base64.encode(source.path, function (err, base64string) {
+				
+				if (err) {
+					console.log(err);
+					if (source.direct) client.submit('moveFileDirect', {base64: null, error: err, destination: destination.path}, filter);
+				} else {
+
+					if (source.direct) {
+						client.socket.emit('moveFileDirect', base64string, destination.path, destination.id);
+					} else {
+						client.submit('moveFile', {base64: base64string, destination: destination.path}, filter);
+					}
+				}
+
+				if (callback) callback(err);
+			});
+		}
+	}
+}
+
+/**
+ * Send a file the server requested
+ *
+ * @author   Jelle De Loecker   <jelle@kipdola.be>
+ * @since    2013.01.13
+ * @version  2013.01.13
+ */
+client.socket.on('requestFile', function (sourcepath, destination) {
+	console.log('A file is being requested from the server ...');
+	client.moveFile({type: 'path', path: sourcepath, direct: true}, destination);
+});
+
+client.socket.on('connect', function (socket) {
 	
 	console.log('Connected to server ' + local.server + ' on port ' + local.serverport + ' as ' + client.name);
 	
@@ -116,7 +193,6 @@ client.socket.on('connect', function(socket) {
 	
 	// Send the login message
 	client.login();
-
 });
 
 client.socket.on('notifyTransfer', function (data) {
@@ -129,15 +205,25 @@ client.socket.on('notifyTransfer', function (data) {
 });
 
 /**
+ * We're receiving a base64 encoded file
+ *
+ * @author   Jelle De Loecker   <jelle@kipdola.be>
+ * @since    2013.01.13
+ * @version  2013.01.13
+ */
+client.socket.on('moveFile', function (base64, path) {
+	
+});
+
+/**
  * Handle file data
  *
  * @author   Jelle De Loecker   <jelle@kipdola.be>
  * @since    2013.01.07
  * @version  2013.01.07
- *
  */
 client.socket.on('file', function (file) {
-console.log('Receiving file');
+
 	if (file.type == 'clientfile') {
 
 		fs.writeFile('./clientfiles/' + file.name + '.js', file.data, function(err){
