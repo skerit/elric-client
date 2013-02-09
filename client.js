@@ -129,7 +129,7 @@ client.login = function () {
  * @param    {function} callback
  */
 client.moveFile = function moveFile (source, destination, filter, callback) {
- 
+
 	/**
 	 * File packet structure:
 	 * type: base64 | path
@@ -148,25 +148,64 @@ client.moveFile = function moveFile (source, destination, filter, callback) {
 		}
 	} else if (source.type == 'path') {
 		
-		// Send a source file to a destination socket by base64 encoding it
-		if (destination.type == 'base64' || destination.type == 'server') {
+		// @todo: if it fails, fall back to the base64 way!
+		if (typeof client.settings.scp != 'undefined'
+				&& client.settings.scp.enabled
+				&& !destination.noscp) {
 			
-			client.tools.base64.encode(source.path, function (err, base64string) {
+			destination.method = 'scp';
+			
+			var options = {
+				file: source.path,
+				user: client.settings.scp.login,
+				host: client.local.server,
+				port: client.settings.scp.port ? client.settings.scp.port : 22,
+				path: destination.path
+			};
+			
+			scp.send(options, function(err) {
 				
+				// If there's an error, try it again, but the base64 route!
 				if (err) {
-					console.log(err);
-					if (source.direct) client.submit('moveFileDirect', {base64: null, error: err, destination: destination.path}, filter);
+					
+					console.log('Could not SCP the file, trying websockets');
+					
+					// Indicate we do not want scp
+					destination.noscp = true;
+					
+					client.moveFile(source, destination, filter, callback);
+					
 				} else {
-
-					if (source.direct) {
-						client.socket.emit('moveFileDirect', base64string, destination.path, destination.id);
-					} else {
-						client.submit('moveFile', {base64: base64string, destination: destination.path}, filter);
-					}
+					if (callback) callback(null);
+					client.socket.emit('moveFileFinished', destination);
 				}
-
-				if (callback) callback(err);
+				
 			});
+			
+		} else {
+			
+			destination.method = 'base64';
+			
+			// Send a source file to a destination socket by base64 encoding it
+			if (destination.type == 'base64' || destination.type == 'server') {
+				
+				client.tools.base64.encode(source.path, function (err, base64string) {
+					
+					if (err) {
+						console.log(err);
+						if (source.direct) client.submit('moveFileDirect', {base64: null, error: err, destination: destination.path}, filter);
+					} else {
+	
+						if (source.direct) {
+							client.socket.emit('moveFileDirect', base64string, destination.path, destination.id);
+						} else {
+							client.submit('moveFile', {base64: base64string, destination: destination.path}, filter);
+						}
+					}
+	
+					if (callback) callback(err);
+				});
+			}
 		}
 	}
 }
