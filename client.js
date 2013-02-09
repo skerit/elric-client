@@ -9,6 +9,7 @@ var fs = require('fs');
 var jQuery = require('jquery');
 var $ = jQuery;
 var mv = require('mv');
+var scp = require('scp');
 var base64 = require('base64js');
 var local = require('./local');
 var flat = require('./flat');
@@ -220,7 +221,7 @@ client.socket.on('moveFile', function (base64, path) {
  *
  * @author   Jelle De Loecker   <jelle@kipdola.be>
  * @since    2013.01.07
- * @version  2013.01.07
+ * @version  2013.02.09
  */
 client.socket.on('file', function (file) {
 
@@ -246,9 +247,17 @@ client.socket.on('file', function (file) {
 					// Only initialize if the capability has been enabled!
 					if (client.settings[capname] !== undefined) {
 						loadCapability = client.settings[capname].enabled;
+					} else {
+						console.log('Capability ' + capname + ' not loaded: no settings found');
 					}
 					
-					if (loadCapability) client.capabilities[capname] = require('./clientfiles/' + capname)(client);
+					if (loadCapability) {
+						try {
+							client.capabilities[capname] = require('./clientfiles/' + capname)(client);
+						} catch (err) {
+							console.error('Client file not found: ' + capname);
+						}
+					}
 				}
 				
 				// Now we can send the started signal
