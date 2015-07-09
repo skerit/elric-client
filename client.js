@@ -3,8 +3,14 @@
  */
 require('alchemymvc');
 
-// Create the elric global
-GLOBAL.elric = {};
+setTimeout(function() {
+	console.log('Submitting data');
+alchemy.multicast('client', 'this is data from the client', true, function(response, packet, callback) {
+	console.log('Got client response', response);
+});
+}, 200)
+
+return;
 
 var local    = require('./local'),
     address  = 'ws://' + local.server + ':' + local.serverport;
