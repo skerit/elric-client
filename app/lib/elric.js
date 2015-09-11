@@ -1,4 +1,19 @@
-var os = require('os');
+var bcrypt = alchemy.use('bcrypt'),
+    crypto = alchemy.use('crypto'),
+    fs = alchemy.use('fs'),
+    os = require('os'),
+    conf;
+
+try {
+	// Get the configuration file
+	conf = fs.readFileSync('elric_config.json', 'utf-8');
+
+	// Undry it
+	conf = JSON.undry(conf);
+} catch (err) {
+	// Create a new conf object
+	conf = {};
+}
 
 /**
  * The Elric class
@@ -22,6 +37,97 @@ var Elric = Function.inherits('Informer', function Elric() {
 	// The found master packet
 	this.master = null;
 
+	// Are we authenticated?
+	this.authenticated = false;
+
+	// Create a new queue for storing files
+	this.store_queue = Function.createQueue();
+	this.store_queue.limit = 1;
+	this.store_queue.start();
+});
+
+/**
+ * Get/set configuration
+ *
+ * @author   Jelle De Loecker   <jelle@develry.be>
+ * @since    1.0.0
+ * @version  1.0.0
+ */
+Elric.setMethod(function config(key, val, callback) {
+
+	if (arguments.length == 1) {
+		return conf[key];
+	}
+
+	conf[key] = val;
+
+	if (callback !== false) {
+		this.storeConfig(callback);
+	}
+
+	return val;
+});
+
+/**
+ * Store the config to disk
+ *
+ * @author   Jelle De Loecker   <jelle@develry.be>
+ * @since    1.0.0
+ * @version  1.0.0
+ */
+Elric.setMethod(function storeConfig(callback) {
+	this.store_queue.add(function doStore(done) {
+		fs.writeFile('elric_config.json', JSON.dry(conf), function stored(err) {
+
+			if (err) {
+				log.error('Failed to store config file: ' + err);
+			}
+
+			if (callback) {
+				callback(err);
+			}
+
+			done();
+		});
+	});
+});
+
+/**
+ * Get auth key to send to the master
+ *
+ * @author   Jelle De Loecker   <jelle@develry.be>
+ * @since    1.0.0
+ * @version  1.0.0
+ */
+Elric.setMethod(function generateAuthKey(callback) {
+
+	var credentials = this.config('credentials');
+
+	if (!credentials) {
+		return callback(new Error('No credentials set'));
+	}
+
+	// Generate a bcrypt hash
+	bcrypt.hash(credentials.key, 12, callback);
+});
+
+/**
+ * Check server secret
+ *
+ * @author   Jelle De Loecker   <jelle@develry.be>
+ * @since    1.0.0
+ * @version  1.0.0
+ */
+Elric.setMethod(function checkServerSecret(hash, callback) {
+
+	var credentials = this.config('credentials');
+
+	if (!credentials) {
+		return callback(new Error('No credentials set'));
+	}
+
+	// Compare the local secret to the received hash
+	bcrypt.compare(credentials.secret, hash, callback);
 });
 
 /**
@@ -33,7 +139,8 @@ var Elric = Function.inherits('Informer', function Elric() {
  */
 Elric.setMethod(function connect(callback) {
 
-	var that = this;
+	var that = this,
+	    credentials;
 
 	if (callback) {
 		this.after('master', function gotMaster() {
@@ -69,7 +176,8 @@ Elric.setMethod(function connect(callback) {
 
 		announce_data = {
 			type: 'ElricClient',
-			hostname: that.hostname
+			hostname: that.hostname,
+			start_time: alchemy.start_time
 		};
 
 		// Set the response packet as master info
@@ -91,7 +199,55 @@ Elric.setMethod(function connect(callback) {
 			}
 		});
 
+		credentials = that.config('credentials');
+
+		// If this client hasn't been paired yet, wait for credentials
+		if (!credentials) {
+
+			connection.once('credentials', function gotCredentials(data, callback) {
+
+				that.config('credentials', data, function stored(err) {
+
+					if (err) {
+						log.error('Failed to store credentials: ' + err);
+						return callback(err);
+					}
+
+					callback(null, 'STORED');
+				});
+			});
+		}
+
+		// Listen to server authentication requests
+		connection.on('request-authentication', function gotServerKey(hash, callback) {
+
+			// Check the hash the server sent us, make sure it's genuine
+			that.checkServerSecret(hash, function checked(err, result) {
+
+				if (err || !result) {
+					log.error('Could not authenticate the server!');
+					return callback(err || new Error('Failed to authenticate server'));
+				}
+
+				that.generateAuthKey(function gotKey(err, client_hash) {
+
+					if (err) {
+						log.error('Could not generate key to send to server');
+						return callback(err);
+					}
+
+					callback(null, client_hash);
+				});
+			});
+		});
+
+		connection.on('authenticated', function gotAuthenticated() {
+			that.authenticated = true;
+			log.info('Client has been authenticated');
+		});
+
 		connection.on('close', function closed() {
+			that.authenticated = false;
 			log.info('Lost connection to master');
 		});
 

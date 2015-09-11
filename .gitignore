@@ -11,7 +11,6 @@ temp/*
 # Ignore IDE specific files
 *.komodo*
 *.sublime*
-<<<<<<< Updated upstream
 .idea/
 
 # Ignore special files
@@ -37,10 +36,7 @@ app/config/local.js
 old/
 
 # Ignore client files
-=======
-public/bootstrap
-public/stylesheets
-local.js
-settings/*
->>>>>>> Stashed changes
 clientfiles/*
+
+# Ignore config json file
+elric_config.json

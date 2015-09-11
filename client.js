@@ -16,8 +16,11 @@ process.on('uncaughtException', function(error) {
 alchemy.start({client_mode: true}, function ready() {
 
 	// Create a connection to the master
-	elric.connect();
-
+	elric.connect(function done(err) {
+		if (err) {
+			log.error('Failed to establish connection: ' + err);
+		}
+	});
 });
 
 
