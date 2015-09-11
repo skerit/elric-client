@@ -1,5 +1,6 @@
 var bcrypt = alchemy.use('bcrypt'),
     crypto = alchemy.use('crypto'),
+    libtemp = alchemy.use('temp'),
     fs = alchemy.use('fs'),
     os = require('os'),
     conf;
@@ -39,6 +40,9 @@ var Elric = Function.inherits('Informer', function Elric() {
 
 	// Are we authenticated?
 	this.authenticated = false;
+
+	// Store capabilities
+	this.capabilities = {};
 
 	// Create a new queue for storing files
 	this.store_queue = Function.createQueue();
@@ -241,9 +245,55 @@ Elric.setMethod(function connect(callback) {
 			});
 		});
 
+		// Listen for the authenticated event
 		connection.on('authenticated', function gotAuthenticated() {
 			that.authenticated = true;
 			log.info('Client has been authenticated');
+		});
+
+		// Listen for capability settings & files
+		connection.on('capability-settings', function gotCapability(data, stream, callback) {
+
+			if (typeof stream == 'function') {
+				callback = stream;
+				stream = null;
+			}
+
+			if (stream) {
+				stream.pause();
+
+				libtemp.open('ccap_file_' + data.name + '_', function opened(err, info) {
+
+					var file = fs.createWriteStream(info.path);
+
+					// Pipe the stream into the file
+					stream.pipe(file);
+
+					// Listen for the write to be finished
+					stream.on('end', function ended() {
+
+						var client_fnc;
+
+						// Now require the file
+						try {
+							client_fnc = require(info.path);
+							client_fnc(elric, data.settings);
+
+							// Store it in the capabilities object
+							that.capabilities[data.name] = Object.assign({}, data.settings, {fnc: client_fnc});
+						} catch (err) {
+							log.error('Could not execute "' + data.name + '" client capability file');
+							return callback(err);
+						}
+
+						callback();
+					});
+				});
+			} else {
+				log.info('Capability settings for "' + data.name + '" have been stored, no client files found');
+				that.capabilities[data.name] = Object.assign({}, data.settings);
+				callback();
+			}
 		});
 
 		connection.on('close', function closed() {
