@@ -1,4 +1,5 @@
-var bcrypt = alchemy.use('bcrypt'),
+var require_install = require('require-install'),
+    bcrypt = alchemy.use('bcrypt'),
     crypto = alchemy.use('crypto'),
     libtemp = alchemy.use('temp'),
     fs = alchemy.use('fs'),
@@ -94,6 +95,36 @@ Elric.setMethod(function storeConfig(callback) {
 			done();
 		});
 	});
+});
+
+/**
+ * Require something, possibly use require_install
+ *
+ * @author   Jelle De Loecker   <jelle@develry.be>
+ * @since    1.0.0
+ * @version  1.0.0
+ */
+Elric.setMethod(function use(name) {
+
+	var result;
+
+	try {
+		result = alchemy.use(name, {silent: true});
+	} catch (err) {
+		// Try again using require_install
+	}
+
+	if (!result) {
+		console.log('Trying require_install');
+		// @todo: cache?
+		try {
+			result = require_install(name);
+		} catch(err) {
+			console.log('ERR:', err);
+		}
+	}
+
+	return result;
 });
 
 /**
@@ -272,21 +303,31 @@ Elric.setMethod(function connect(callback) {
 					// Listen for the write to be finished
 					stream.on('end', function ended() {
 
-						var client_fnc;
+						var client_fnc,
+						    instance,
+						    idata;
 
 						// Now require the file
 						try {
+							// Require the file
 							client_fnc = require(info.path);
-							client_fnc(elric, data.settings);
+
+							// Execute the main (constructor) function
+							instance = client_fnc(elric, data.settings);
+
+							idata = Object.assign({}, data.settings, {fnc: client_fnc, instance: instance})
 
 							// Store it in the capabilities object
-							that.capabilities[data.name] = Object.assign({}, data.settings, {fnc: client_fnc});
+							that.capabilities[data.name] = idata;
+
+							// Do the start method
+							instance.start(callback);
 						} catch (err) {
-							log.error('Could not execute "' + data.name + '" client capability file');
+							log.error('Could not execute "' + data.name + '" client capability file: ' +err);
 							return callback(err);
 						}
 
-						callback();
+						log.info('Client capability file "' + data.name + '" has loaded');
 					});
 				});
 			} else {
@@ -299,6 +340,19 @@ Elric.setMethod(function connect(callback) {
 		connection.on('close', function closed() {
 			that.authenticated = false;
 			log.info('Lost connection to master');
+		});
+
+		// Listen for client-commands to send to the client files
+		connection.on('client-command', function gotClientCommand(data, response) {
+
+			var capability = that.capabilities[data.client_type];
+
+			if (!capability) {
+				return log.info('Ignoring command for ' + data.client_type + ': No client file found');
+			}
+
+			console.log('Emitting event "' + data.command_type + '" on client instance');
+			capability.instance.emit(data.command_type, data, response, null);
 		});
 
 		// Emit the master event

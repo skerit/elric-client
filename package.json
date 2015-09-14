@@ -1,9 +1,10 @@
 {
-	"name": "elric-client",
-	"description": "The Elric client",
-	"version": "0.1.0",
-	"private": true,
-	"dependencies": {
-		"alchemymvc": "0.0.x"
-	}
+  "name": "elric-client",
+  "description": "The Elric client",
+  "version": "0.1.0",
+  "private": true,
+  "dependencies": {
+    "alchemymvc": "0.0.x",
+    "require-install": "~0.2.0"
+  }
 }
