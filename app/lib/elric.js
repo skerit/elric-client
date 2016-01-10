@@ -6,16 +6,18 @@ var require_install = require('require-install'),
     os = require('os'),
     conf;
 
-try {
-	// Get the configuration file
-	conf = fs.readFileSync('elric_config.json', 'utf-8');
+(function readConfig() {
+	try {
+		// Get the configuration file
+		conf = fs.readFileSync('elric_config.json', 'utf-8');
 
-	// Undry it
-	conf = JSON.undry(conf);
-} catch (err) {
-	// Create a new conf object
-	conf = {};
-}
+		// Undry it
+		conf = JSON.undry(conf);
+	} catch (err) {
+		// Create a new conf object
+		conf = {};
+	}
+}());
 
 /**
  * The Elric class
@@ -112,10 +114,14 @@ Elric.setMethod(function use(name) {
 		result = alchemy.use(name, {silent: true});
 	} catch (err) {
 		// Try again using require_install
+
+		// For debug purposes: throw err, don't try require_install
+		throw err;
 	}
 
 	if (!result) {
-		console.log('Trying require_install');
+		console.log('Trying require_install for', name);
+		return null;
 		// @todo: cache?
 		try {
 			result = require_install(name);
@@ -359,6 +365,7 @@ Elric.setMethod(function connect(callback) {
 			}
 
 			console.log('Emitting event "' + data.command_type + '" on client instance');
+
 			if (stream) {
 				capability.instance.emit(data.command_type, data, stream, response, null);
 			} else {
