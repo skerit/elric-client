@@ -343,16 +343,27 @@ Elric.setMethod(function connect(callback) {
 		});
 
 		// Listen for client-commands to send to the client files
-		connection.on('client-command', function gotClientCommand(data, response) {
+		connection.on('client-command', function gotClientCommand(data, stream, response) {
 
 			var capability = that.capabilities[data.client_type];
+
+			if (typeof stream == 'function') {
+				response = stream;
+				stream = null;
+			}
+
+			console.log('Got client command', data, stream, response);
 
 			if (!capability) {
 				return log.info('Ignoring command for ' + data.client_type + ': No client file found');
 			}
 
 			console.log('Emitting event "' + data.command_type + '" on client instance');
-			capability.instance.emit(data.command_type, data, response, null);
+			if (stream) {
+				capability.instance.emit(data.command_type, data, stream, response, null);
+			} else {
+				capability.instance.emit(data.command_type, data, response, null);
+			}
 		});
 
 		// Emit the master event

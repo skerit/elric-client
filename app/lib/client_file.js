@@ -36,3 +36,28 @@ CF.constitute(function setup() {
 
 	log.info('Capability file ' + this.constructor.name + ' has been registered');
 });
+
+/**
+ * Execute a capability command on the elric server
+ *
+ * @author   Jelle De Loecker <jelle@develry.be>
+ * @since    1.0.0
+ * @version  1.0.0
+ *
+ * @param    {String}   type
+ */
+CF.setMethod(function remoteCommand(type) {
+
+	var args = [],
+	    i;
+
+	for (i = 1; i < arguments.length; i++) {
+		args.push(arguments[i]);
+	}
+
+	this.client.connection.submit('capability-command', {
+		capability: this.constructor.name.before('ClientFile'),
+		type: type,
+		args: args
+	});
+});
