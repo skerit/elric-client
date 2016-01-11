@@ -38,6 +38,20 @@ CF.constitute(function setup() {
 });
 
 /**
+ * Listen to server-initiated linkups
+ *
+ * @author   Jelle De Loecker <jelle@develry.be>
+ * @since    1.0.0
+ * @version  1.0.0
+ *
+ * @param    {String}   type
+ * @param    {Function} callback
+ */
+CF.setMethod(function onLinkup(type, callback) {
+	this.client.connection.onLinkup(type, callback);
+});
+
+/**
  * Execute a capability command on the elric server
  *
  * @author   Jelle De Loecker <jelle@develry.be>
