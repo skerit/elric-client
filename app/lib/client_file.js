@@ -75,3 +75,56 @@ CF.setMethod(function remoteCommand(type) {
 		args: args
 	});
 });
+
+/**
+ * Start this client file
+ *
+ * @author   Jelle De Loecker <jelle@develry.be>
+ * @since    1.0.0
+ * @version  1.0.0
+ */
+CF.setMethod(function doStart(callback) {
+	this.start(callback);
+});
+
+/**
+ * Start method the client should inherit
+ *
+ * @author   Jelle De Loecker <jelle@develry.be>
+ * @since    1.0.0
+ * @version  1.0.0
+ */
+CF.setMethod(function start(callback) {
+	setImmediate(callback);
+});
+
+/**
+ * Stop this client file
+ *
+ * @author   Jelle De Loecker <jelle@develry.be>
+ * @since    1.0.0
+ * @version  1.0.0
+ */
+CF.setMethod(function doStop() {
+
+	var key;
+
+	console.log('Stopping', this.constructor.name, this);
+
+	// Destroy all the linkups first
+	for (key in this.client.connection.linkups) {
+		this.client.connection.linkups[key].destroy();
+	}
+
+	// Call the stop method last
+	this.stop();
+});
+
+/**
+ * Stop method the client should inherit
+ *
+ * @author   Jelle De Loecker <jelle@develry.be>
+ * @since    1.0.0
+ * @version  1.0.0
+ */
+CF.setMethod(function stop() {});

@@ -207,12 +207,17 @@ Elric.setMethod(function connect(callback) {
 		    connection;
 
 		if (err) {
+			log.error('Discovery error: ' + err);
 			return callback(err);
 		}
 
 		if (!responses.length) {
-			// @todo: Try again?
-			return log.error('No master instance could be found ...');
+
+			setTimeout(function retryDiscover() {
+				alchemy.discover('elric::master', gotResponses);
+			}, 5000);
+
+			return log.error('No master instance could be found, retrying in 5 seconds');
 		}
 
 		announce_data = {
@@ -226,8 +231,10 @@ Elric.setMethod(function connect(callback) {
 
 		log.info('Found master at ' + that.master.remote.address);
 
+		// Construct the uri to the master
 		master_uri = 'http://' + that.master.remote.address + ':' + that.master.http_port;
 
+		// Create a connection with the master elric server
 		connection = alchemy.callServer(master_uri, announce_data, function connected(err) {
 
 			// Set the websocket connection
@@ -240,11 +247,11 @@ Elric.setMethod(function connect(callback) {
 			}
 		});
 
+		// Get credentials
 		credentials = that.config('credentials');
 
 		// If this client hasn't been paired yet, wait for credentials
 		if (!credentials) {
-
 			connection.once('credentials', function gotCredentials(data, callback) {
 
 				that.config('credentials', data, function stored(err) {
@@ -327,7 +334,7 @@ Elric.setMethod(function connect(callback) {
 							that.capabilities[data.name] = idata;
 
 							// Do the start method
-							instance.start(callback);
+							instance.doStart(callback);
 						} catch (err) {
 							log.error('Could not execute "' + data.name + '" client capability file: ' +err);
 							return callback(err);
@@ -343,9 +350,27 @@ Elric.setMethod(function connect(callback) {
 			}
 		});
 
+		// Listen for the close event, and reconnect
 		connection.on('close', function closed() {
+
+			var entry,
+			    name;
+
 			that.authenticated = false;
-			log.info('Lost connection to master');
+			log.info('Lost connection to master, destroying capability instances');
+
+			for (name in that.capabilities) {
+				entry = that.capabilities[name];
+
+				if (entry.instance) {
+					entry.instance.doStop();
+				}
+			}
+
+			log.info('Scheduling reconnection ...');
+			setTimeout(function doReconnect() {
+				alchemy.discover('elric::master', gotResponses);
+			}, 2000);
 		});
 
 		// Listen for client-commands to send to the client files
@@ -358,13 +383,9 @@ Elric.setMethod(function connect(callback) {
 				stream = null;
 			}
 
-			console.log('Got client command', data, stream, response);
-
 			if (!capability) {
 				return log.info('Ignoring command for ' + data.client_type + ': No client file found');
 			}
-
-			console.log('Emitting event "' + data.command_type + '" on client instance');
 
 			if (stream) {
 				capability.instance.emit(data.command_type, data, stream, response, null);
