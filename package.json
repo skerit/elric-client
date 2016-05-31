@@ -4,7 +4,9 @@
   "version": "0.1.0",
   "private": true,
   "dependencies": {
-    "alchemymvc": "0.0.x",
-    "require-install": "~0.2.0"
+    "alchemymvc": "~0.2.0",
+    "mediaconversion": "~0.1.0",
+    "require-install": "~0.3.3",
+    "sonority": "~0.1.0"
   }
 }
