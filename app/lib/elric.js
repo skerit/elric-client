@@ -54,6 +54,60 @@ var Elric = Function.inherits('Informer', function Elric() {
 });
 
 /**
+ * Get the time offset (compared to the server)
+ *
+ * @author   Jelle De Loecker   <jelle@develry.be>
+ * @since    1.0.0
+ * @version  1.0.0
+ *
+ * @return   {Number}
+ */
+Elric.setProperty(function offset() {
+
+	if (this.connection) {
+		return this.connection.offset;
+	}
+
+	return 0;
+});
+
+/**
+ * Get the latency
+ *
+ * @author   Jelle De Loecker   <jelle@develry.be>
+ * @since    1.0.0
+ * @version  1.0.0
+ *
+ * @return   {Number}
+ */
+Elric.setProperty(function latency() {
+
+	if (this.connection) {
+		return this.connection.latency;
+	}
+
+	return 0;
+});
+
+/**
+ * Get the offset corrected timestamp
+ *
+ * @author   Jelle De Loecker   <jelle@develry.be>
+ * @since    1.0.0
+ * @version  1.0.0
+ *
+ * @return   {Number}
+ */
+Elric.setMethod(function now() {
+
+	if (this.connection) {
+		return this.connection.now();
+	}
+
+	return Date.now();
+});
+
+/**
  * Get/set configuration
  *
  * @author   Jelle De Loecker   <jelle@develry.be>
