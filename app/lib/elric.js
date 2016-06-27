@@ -165,6 +165,15 @@ Elric.setMethod(function use(name) {
 	var result;
 
 	try {
+		console.log('Requiring...', name);
+		result = require(name);
+		return result;
+	} catch (err) {
+		console.log('Require failed:', err);
+		// Ignore, use alchemy
+	}
+
+	try {
 		result = alchemy.use(name, {silent: true});
 	} catch (err) {
 		// Try again using require_install
@@ -238,7 +247,7 @@ Elric.setMethod(function connect(callback) {
 	    credentials;
 
 	if (callback) {
-		this.after('master', function gotMaster() {
+		this.afterOnce('master', function gotMaster() {
 			callback(null, that.master);
 		});
 	}
@@ -251,6 +260,7 @@ Elric.setMethod(function connect(callback) {
 		callback = Function.thrower;
 	}
 
+	// Indicate we are currently establishing a connection
 	this._connecting = true;
 
 	// Send out an multicast discovery
@@ -283,7 +293,7 @@ Elric.setMethod(function connect(callback) {
 		// Set the response packet as master info
 		that.master = responses[0][1];
 
-		log.info('Found master at ' + that.master.remote.address);
+		log.info('Connecting to master at ' + that.master.remote.address);
 
 		// Construct the uri to the master
 		master_uri = 'http://' + that.master.remote.address + ':' + that.master.http_port;
@@ -410,7 +420,18 @@ Elric.setMethod(function connect(callback) {
 			var entry,
 			    name;
 
+			// Unset authentication
 			that.authenticated = false;
+
+			// Unset master property
+			that.master = null;
+
+			// Unsee the master event
+			that.unsee('master');
+
+			// Set connecting to false
+			that._connecting = false;
+
 			log.info('Lost connection to master, destroying capability instances');
 
 			for (name in that.capabilities) {
@@ -421,10 +442,11 @@ Elric.setMethod(function connect(callback) {
 				}
 			}
 
-			log.info('Scheduling reconnection ...');
+			log.info('Reconnecting in 3 seconds ...');
+
 			setTimeout(function doReconnect() {
-				alchemy.discover('elric::master', gotResponses);
-			}, 2000);
+				that.connect();
+			}, 3000);
 		});
 
 		// Listen for client-commands to send to the client files

@@ -13,7 +13,7 @@ var CF = Function.inherits('Informer', function ClientFile(client, settings) {
 	this.client = client;
 
 	// The settings passed to us by the server
-	this.settings = settings;
+	this.settings = Object.assign({}, this.default_settings, settings);
 
 	log.info('Capability ' + this.constructor.name + ' is starting up');
 });
@@ -36,6 +36,17 @@ CF.constitute(function setup() {
 
 	log.info('Capability file ' + this.constructor.name + ' has been registered');
 });
+
+/**
+ * Default client file settings
+ *
+ * @author   Jelle De Loecker <jelle@develry.be>
+ * @since    1.0.0
+ * @version  1.0.0
+ *
+ * @type {Object}
+ */
+CF.setProperty('default_settings', {});
 
 /**
  * Listen to server-initiated linkups
@@ -96,6 +107,18 @@ CF.setMethod(function doStart(callback) {
  */
 CF.setMethod(function start(callback) {
 	setImmediate(callback);
+});
+
+/**
+ * Submit a message to the server
+ * @TODO: add stream support and such
+ *
+ * @author   Jelle De Loecker <jelle@develry.be>
+ * @since    1.0.0
+ * @version  1.0.0
+ */
+CF.setMethod(function submit(type, msg) {
+	this.client.connection.submit(type, msg);
 });
 
 /**

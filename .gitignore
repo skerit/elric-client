@@ -40,3 +40,4 @@ clientfiles/*
 
 # Ignore config json file
 elric_config.json
+scratch*
