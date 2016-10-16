@@ -1,9 +1,10 @@
-var require_install = require('require-install'),
-    bcrypt = alchemy.use('bcrypt'),
-    crypto = alchemy.use('crypto'),
-    libtemp = alchemy.use('temp'),
-    fs = alchemy.use('fs'),
-    os = require('os'),
+var deasync  = alchemy.use('deasync'),
+    libtemp  = alchemy.use('temp'),
+    bcrypt   = alchemy.use('bcrypt'),
+    crypto   = alchemy.use('crypto'),
+    npmp     = alchemy.use('npm-programmatic'),
+    fs       = alchemy.use('fs'),
+    os       = alchemy.use('os'),
     conf;
 
 (function readConfig() {
@@ -33,7 +34,8 @@ var Elric = Function.inherits('Informer', function Elric() {
 	// Set the hostname
 	this.hostname = os.hostname();
 
-	log.info('Client will be identified as ' + JSON.stringify(this.hostname));
+	// Set the terminal title
+	alchemy.Janeway.setTitle('Elric Client "' + this.hostname + '"');
 
 	// Are we already connecting?
 	this._connecting = false;
@@ -154,6 +156,23 @@ Elric.setMethod(function storeConfig(callback) {
 });
 
 /**
+ * Install synchronously using npm
+ *
+ * @author   Jelle De Loecker   <jelle@develry.be>
+ * @since    1.0.0
+ * @version  1.0.0
+ */
+Elric.setMethod('npmInstall', deasync(function npmInstall(package, callback) {
+	npmp.install([package], {
+		cwd: PATH_ROOT
+	}).then(function done() {
+		callback(null);
+	}).catch(function onError(err) {
+		callback(err || new Error('Failed to install ' + package));
+	});
+}));
+
+/**
  * Require something, possibly use require_install
  *
  * @author   Jelle De Loecker   <jelle@develry.be>
@@ -162,34 +181,36 @@ Elric.setMethod(function storeConfig(callback) {
  */
 Elric.setMethod(function use(name) {
 
-	var result;
+	var result,
+	    failed;
 
+	// Try the normal require first
 	try {
-		console.log('Requiring...', name);
 		result = require(name);
-		return result;
 	} catch (err) {
-		console.log('Require failed:', err);
 		// Ignore, use alchemy
+		failed = true;
 	}
 
-	try {
+	// If the require failed
+	if (failed) {
+
+		// Try alchemy.use
 		result = alchemy.use(name, {silent: true});
-	} catch (err) {
-		// Try again using require_install
 
-		// For debug purposes: throw err, don't try require_install
-		throw err;
-	}
+		// If that didn't work, install the package
+		if (!result) {
 
-	if (!result) {
-		console.log('Trying require_install for', name);
-		return null;
-		// @todo: cache?
-		try {
-			result = require_install(name);
-		} catch(err) {
-			console.log('ERR:', err);
+			that.setStatus('Installing required package "' + name + '"', false, 'simpleDotsScrolling');
+
+			try {
+				this.npmInstall(name);
+				result = require(name);
+				that.setStatus('Installed "' + name + '" package!');
+			} catch (err) {
+				console.error('Failed to install "' + name + '" package!', err);
+				throw err;
+			}
 		}
 	}
 
@@ -235,6 +256,34 @@ Elric.setMethod(function checkServerSecret(hash, callback) {
 });
 
 /**
+ * Set janeway statusbar
+ *
+ * @author   Jelle De Loecker   <jelle@develry.be>
+ * @since    1.0.0
+ * @version  1.0.0
+ */
+Elric.setMethod(function setStatus(text, update, spinner) {
+
+	if (this.current_status) {
+		if (this.current_status.text == text || update) {
+			this.current_status.setText(text);
+
+			if (spinner) {
+				this.current_status.startSpinner(spinner);
+			} else {
+				this.current_status.stopSpinner();
+			}
+
+			return this.current_status;
+		}
+	}
+
+	this.current_status = alchemy.Janeway.setStatus(text, spinner);
+
+	return this.current_status;
+});
+
+/**
  * Search and connect to the master
  *
  * @author   Jelle De Loecker   <jelle@develry.be>
@@ -244,7 +293,10 @@ Elric.setMethod(function checkServerSecret(hash, callback) {
 Elric.setMethod(function connect(callback) {
 
 	var that = this,
-	    credentials;
+	    credentials,
+	    retry_text;
+
+	retry_text = 'No master instance could be found, retrying in 5 seconds';
 
 	if (callback) {
 		this.afterOnce('master', function gotMaster() {
@@ -263,12 +315,19 @@ Elric.setMethod(function connect(callback) {
 	// Indicate we are currently establishing a connection
 	this._connecting = true;
 
+	function scanSpinner() {
+		that.setStatus('Scanning for Elric master', false, 'pie');
+	}
+
+	scanSpinner();
+
 	// Send out an multicast discovery
 	alchemy.discover('elric::master', function gotResponses(err, responses) {
 
 		var announce_data,
 		    master_uri,
-		    connection;
+		    connection,
+		    bomb;
 
 		if (err) {
 			log.error('Discovery error: ' + err);
@@ -278,10 +337,11 @@ Elric.setMethod(function connect(callback) {
 		if (!responses.length) {
 
 			setTimeout(function retryDiscover() {
+				scanSpinner();
 				alchemy.discover('elric::master', gotResponses);
 			}, 5000);
 
-			return log.error('No master instance could be found, retrying in 5 seconds');
+			return that.setStatus(retry_text);
 		}
 
 		announce_data = {
@@ -293,7 +353,19 @@ Elric.setMethod(function connect(callback) {
 		// Set the response packet as master info
 		that.master = responses[0][1];
 
-		log.info('Connecting to master at ' + that.master.remote.address);
+		that.setStatus('Connecting to master at ' + that.master.remote.address, false, 'arrow3');
+
+		// Create the timebomb so we'll retry after a while
+		bomb = Function.timebomb(5000, function timeout(err) {
+
+			// @TODO: destroy connection?
+			that.setStatus('Connection attempt timed out, retrying discovery in 3 seconds');
+
+			setTimeout(function retryDiscover() {
+				scanSpinner();
+				alchemy.discover('elric::master', gotResponses);
+			}, 3000);
+		});
 
 		// Construct the uri to the master
 		master_uri = 'http://' + that.master.remote.address + ':' + that.master.http_port;
@@ -305,9 +377,10 @@ Elric.setMethod(function connect(callback) {
 			that.connection = connection;
 
 			if (!err) {
-				log.info('Connection made with master Elric instance');
+				that.setStatus('Connection made with master Elric instance');
+				bomb.defuse();
 			} else {
-				log.error('Could not connect to master Elric instance');
+				that.setStatus('Could not connect to master Elric instance');
 			}
 		});
 
@@ -327,6 +400,11 @@ Elric.setMethod(function connect(callback) {
 
 					callback(null, 'STORED');
 				});
+			});
+		} else {
+			connection.once('credentials', function gotCredentials(data, callback) {
+				log.error('Cannot overwrite credentials, remove manually!');
+				callback(new Error('Already got other set of credentials'));
 			});
 		}
 
@@ -356,7 +434,6 @@ Elric.setMethod(function connect(callback) {
 		// Listen for the authenticated event
 		connection.on('authenticated', function gotAuthenticated() {
 			that.authenticated = true;
-			log.info('Client has been authenticated');
 		});
 
 		// Listen for capability settings & files
@@ -432,7 +509,7 @@ Elric.setMethod(function connect(callback) {
 			// Set connecting to false
 			that._connecting = false;
 
-			log.info('Lost connection to master, destroying capability instances');
+			that.setStatus('Lost connection to master, destroying capability instances');
 
 			for (name in that.capabilities) {
 				entry = that.capabilities[name];
@@ -442,7 +519,7 @@ Elric.setMethod(function connect(callback) {
 				}
 			}
 
-			log.info('Reconnecting in 3 seconds ...');
+			that.setStatus('Reconnecting in 3 seconds ...');
 
 			setTimeout(function doReconnect() {
 				that.connect();

@@ -34,7 +34,9 @@ CF.constitute(function setup() {
 		return new that(client, settings);
 	};
 
-	log.info('Capability file ' + this.constructor.name + ' has been registered');
+	if (this.name != 'ClientFile') {
+		log.info('Capability file ' + this.name + ' has been registered');
+	}
 });
 
 /**

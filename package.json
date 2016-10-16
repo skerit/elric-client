@@ -5,8 +5,9 @@
   "private": true,
   "dependencies": {
     "alchemymvc": "~0.2.0",
+    "deasync": "~0.1.8",
     "mediaconversion": "~0.1.0",
-    "require-install": "~0.3.3",
+    "npm-programmatic": "~0.0.6",
     "sonority": "~0.1.0"
   }
 }
