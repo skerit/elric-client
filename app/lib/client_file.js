@@ -15,7 +15,7 @@ var CF = Function.inherits('Informer', function ClientFile(client, settings) {
 	// The settings passed to us by the server
 	this.settings = Object.assign({}, this.default_settings, settings);
 
-	log.info('Capability ' + this.constructor.name + ' is starting up');
+	this.setStatus('starting');
 });
 
 /**
@@ -35,7 +35,8 @@ CF.constitute(function setup() {
 	};
 
 	if (this.name != 'ClientFile') {
-		log.info('Capability file ' + this.name + ' has been registered');
+		this.prototype.underscored = this.name.before('ClientFile').underscore();
+		elric.capability_indicator.setCapability(this.prototype.underscored, 'registered');
 	}
 });
 
@@ -49,6 +50,19 @@ CF.constitute(function setup() {
  * @type {Object}
  */
 CF.setProperty('default_settings', {});
+
+/**
+ * Set this capability's indicator status
+ *
+ * @author   Jelle De Loecker <jelle@develry.be>
+ * @since    1.0.0
+ * @version  1.0.0
+ *
+ * @param    {String}   status
+ */
+CF.setMethod(function setStatus(status) {
+	elric.capability_indicator.setCapability(this.underscored, status);
+});
 
 /**
  * Listen to server-initiated linkups
@@ -134,7 +148,7 @@ CF.setMethod(function doStop() {
 
 	var key;
 
-	console.log('Stopping', this.constructor.name, this);
+	this.setStatus('stopping');
 
 	// Destroy all the linkups first
 	for (key in this.client.connection.linkups) {
@@ -143,6 +157,8 @@ CF.setMethod(function doStop() {
 
 	// Call the stop method last
 	this.stop();
+
+	this.setStatus('stopped');
 });
 
 /**

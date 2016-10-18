@@ -34,9 +34,6 @@ var Elric = Function.inherits('Informer', function Elric() {
 	// Set the hostname
 	this.hostname = os.hostname();
 
-	// Set the terminal title
-	alchemy.Janeway.setTitle('Elric Client "' + this.hostname + '"');
-
 	// Are we already connecting?
 	this._connecting = false;
 
@@ -53,7 +50,37 @@ var Elric = Function.inherits('Informer', function Elric() {
 	this.store_queue = Function.createQueue();
 	this.store_queue.limit = 1;
 	this.store_queue.start();
+
+	// Bootup the client
+	this.init();
 });
+
+/**
+ * Initialize the client
+ *
+ * @author   Jelle De Loecker   <jelle@develry.be>
+ * @since    1.0.0
+ * @version  1.0.0
+ */
+Elric.setMethod(function init() {
+
+	if (this._inited) {
+		return;
+	}
+
+	this._inited = true;
+
+	// Set the terminal title
+	alchemy.Janeway.setTitle('Elric Client "' + this.hostname + '"');
+
+	// Create the connection indicator
+	this.connection_indicator = __Janeway.addIndicator({type: 'connection', name: 'connection'});
+
+	// Add the capabilities indicator
+	this.capability_indicator = __Janeway.addIndicator({type: 'capability', name: 'capabilities'});
+
+});
+
 
 /**
  * Get the time offset (compared to the server)
@@ -201,14 +228,17 @@ Elric.setMethod(function use(name) {
 		// If that didn't work, install the package
 		if (!result) {
 
-			that.setStatus('Installing required package "' + name + '"', false, 'simpleDotsScrolling');
+			this.setStatus('Installing required package "' + name + '"', false, 'simpleDotsScrolling');
 
 			try {
 				this.npmInstall(name);
 				result = require(name);
-				that.setStatus('Installed "' + name + '" package!');
+				this.setStatus('Installed "' + name + '" package!');
 			} catch (err) {
 				console.error('Failed to install "' + name + '" package!', err);
+
+				// @TODO: should revert to previous status?
+				that.setStatus('Failed to install "' + name + '" package!');
 				throw err;
 			}
 		}
@@ -294,7 +324,8 @@ Elric.setMethod(function connect(callback) {
 
 	var that = this,
 	    credentials,
-	    retry_text;
+	    retry_text,
+	    indicator;
 
 	retry_text = 'No master instance could be found, retrying in 5 seconds';
 
@@ -308,6 +339,8 @@ Elric.setMethod(function connect(callback) {
 		return;
 	}
 
+	indicator = this.connection_indicator;
+
 	if (!callback) {
 		callback = Function.thrower;
 	}
@@ -316,7 +349,7 @@ Elric.setMethod(function connect(callback) {
 	this._connecting = true;
 
 	function scanSpinner() {
-		that.setStatus('Scanning for Elric master', false, 'pie');
+		indicator.scanning();
 	}
 
 	scanSpinner();
@@ -341,7 +374,7 @@ Elric.setMethod(function connect(callback) {
 				alchemy.discover('elric::master', gotResponses);
 			}, 5000);
 
-			return that.setStatus(retry_text);
+			return indicator.retry();
 		}
 
 		announce_data = {
@@ -353,13 +386,13 @@ Elric.setMethod(function connect(callback) {
 		// Set the response packet as master info
 		that.master = responses[0][1];
 
-		that.setStatus('Connecting to master at ' + that.master.remote.address, false, 'arrow3');
+		indicator.connecting();
 
 		// Create the timebomb so we'll retry after a while
 		bomb = Function.timebomb(5000, function timeout(err) {
 
 			// @TODO: destroy connection?
-			that.setStatus('Connection attempt timed out, retrying discovery in 3 seconds');
+			indicator.timedOut();
 
 			setTimeout(function retryDiscover() {
 				scanSpinner();
@@ -377,10 +410,10 @@ Elric.setMethod(function connect(callback) {
 			that.connection = connection;
 
 			if (!err) {
-				that.setStatus('Connection made with master Elric instance');
+				indicator.connected(that.master.remote.address);
 				bomb.defuse();
 			} else {
-				that.setStatus('Could not connect to master Elric instance');
+				indicator.failedToConnect();
 			}
 		});
 
@@ -439,6 +472,8 @@ Elric.setMethod(function connect(callback) {
 		// Listen for capability settings & files
 		connection.on('capability-settings', function gotCapability(data, stream, callback) {
 
+			that.capability_indicator.setCapability(data.name, 'settings');
+
 			if (typeof stream == 'function') {
 				callback = stream;
 				stream = null;
@@ -477,15 +512,16 @@ Elric.setMethod(function connect(callback) {
 							// Do the start method
 							instance.doStart(callback);
 						} catch (err) {
-							log.error('Could not execute "' + data.name + '" client capability file: ' +err);
+							that.capability_indicator.setCapability(data.name, 'error');
+							log.error('Could not execute "' + data.name + '" client capability file: ' +err, {err: err});
 							return callback(err);
 						}
 
-						log.info('Client capability file "' + data.name + '" has loaded');
+						that.capability_indicator.setCapability(data.name, 'loaded');
 					});
 				});
 			} else {
-				log.info('Capability settings for "' + data.name + '" have been stored, no client files found');
+				that.capability_indicator.setCapability(data.name, 'nofile');
 				that.capabilities[data.name] = Object.assign({}, data.settings);
 				callback();
 			}
@@ -509,7 +545,7 @@ Elric.setMethod(function connect(callback) {
 			// Set connecting to false
 			that._connecting = false;
 
-			that.setStatus('Lost connection to master, destroying capability instances');
+			indicator.lostConnection();
 
 			for (name in that.capabilities) {
 				entry = that.capabilities[name];
@@ -519,7 +555,7 @@ Elric.setMethod(function connect(callback) {
 				}
 			}
 
-			that.setStatus('Reconnecting in 3 seconds ...');
+			indicator.reconnecting();
 
 			setTimeout(function doReconnect() {
 				that.connect();
