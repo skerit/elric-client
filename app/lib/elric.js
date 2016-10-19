@@ -1,8 +1,7 @@
-var deasync  = alchemy.use('deasync'),
-    libtemp  = alchemy.use('temp'),
+var libtemp  = alchemy.use('temp'),
     bcrypt   = alchemy.use('bcrypt'),
     crypto   = alchemy.use('crypto'),
-    npmp     = alchemy.use('npm-programmatic'),
+    exec     = alchemy.use('child_process').execSync;
     fs       = alchemy.use('fs'),
     os       = alchemy.use('os'),
     conf;
@@ -189,15 +188,33 @@ Elric.setMethod(function storeConfig(callback) {
  * @since    1.0.0
  * @version  1.0.0
  */
-Elric.setMethod('npmInstall', deasync(function npmInstall(package, callback) {
-	npmp.install([package], {
-		cwd: PATH_ROOT
-	}).then(function done() {
-		callback(null);
-	}).catch(function onError(err) {
-		callback(err || new Error('Failed to install ' + package));
-	});
-}));
+Elric.setMethod(function npmInstall(packages, opts) {
+
+	packages = Array.cast(packages);
+
+	if (!packages.length){
+		throw new Error('No packages found');
+	}
+
+	if (!opts) opts = {};
+
+	if (!opts.cwd) {
+		opts.cwd = PATH_ROOT;
+	}
+
+	var cmdString = 'npm install ' + packages.join(' ') + ' '
+	+ (opts.global ? ' -g' : '')
+	+ (opts.save   ? ' --save' : '')
+	+ (opts.saveDev? ' --saveDev' : '')
+	+ (opts.ignoreScripts? ' --ignore-scripts' : '')
+	+ (opts.legacy ? ' --legacy-bundling' : '');
+
+	var stdout = exec(cmdString, {cwd: opts.cwd ? opts.cwd : '/'});
+
+	if (opts.output) {
+		console.log('NPM: ' + stdout);
+	}
+});
 
 /**
  * Require something, possibly use require_install
