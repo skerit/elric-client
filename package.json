@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "private": true,
   "dependencies": {
-    "alchemymvc"         : "~0.3.2",
+    "alchemymvc"         : "~0.3.1",
     "deasync"            : "~0.1.8",
     "mediaconversion"    : "~0.1.0",
     "npm-programmatic"   : "~0.0.6",
