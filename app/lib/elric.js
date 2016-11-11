@@ -1,7 +1,7 @@
 var libtemp  = alchemy.use('temp'),
     bcrypt   = alchemy.use('bcrypt'),
     crypto   = alchemy.use('crypto'),
-    exec     = alchemy.use('child_process').execSync;
+    exec     = alchemy.use('child_process').execSync,
     fs       = alchemy.use('fs'),
     os       = alchemy.use('os'),
     conf;
