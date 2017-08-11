@@ -499,29 +499,74 @@ Elric.setMethod(function connect(callback) {
 			if (stream) {
 				stream.pause();
 
-				libtemp.open('ccap_file_' + data.name + '_', function opened(err, info) {
+				let temp_file_options = {
+					prefix : 'ccap_file_' + data.name + '_',
+					suffix : '.js'
+				};
+
+				libtemp.open(temp_file_options, function opened(err, info) {
+
+					if (err) {
+						throw err;
+					}
 
 					var file = fs.createWriteStream(info.path);
 
 					// Pipe the stream into the file
 					stream.pipe(file);
 
-					// Listen for the write to be finished
-					stream.on('end', function ended() {
+					// Register the original name in janeway
+					if (typeof __Janeway != 'undefined') {
+						if (!__Janeway.args_name_map) {
+							__Janeway.args_name_map = {};
+						}
 
-						var client_fnc,
-						    instance,
-						    idata;
+						__Janeway.args_name_map[info.path] = 'cf_' + data.name;
+					}
+
+					// Listen for the write to be finished
+					file.on('finish', function ended() {
+
+						var client_module;
 
 						// Now require the file
 						try {
 							// Require the file
-							client_fnc = require(info.path);
+							client_module = require(info.path);
+
+							if (!client_module) {
+								throw new Error('Nothing was exported');
+							}
+
+						} catch (err) {
+							that.capability_indicator.setCapability(data.name, 'error');
+							log.error('Could not load "' + data.name + '" client capability file: ' +err, {err: err});
+							return callback(err);
+						}
+
+						Blast.setImmediate(function letItInitialize() {
+							startClientFile(client_module);
+						});
+					});
+
+					function startClientFile(c_module) {
+
+						var instance,
+						    idata,
+						    fnc;
+
+						if (typeof c_module.create == 'function') {
+							fnc = c_module.create;
+						} else {
+							fnc = c_module;
+						}
+
+						try {
 
 							// Execute the main (constructor) function
-							instance = client_fnc(elric, data.settings);
+							instance = fnc(elric, data.settings);
 
-							idata = Object.assign({}, data.settings, {fnc: client_fnc, instance: instance})
+							idata = Object.assign({}, data.settings, {fnc: fnc, instance: instance})
 
 							// Store it in the capabilities object
 							that.capabilities[data.name] = idata;
@@ -535,7 +580,8 @@ Elric.setMethod(function connect(callback) {
 						}
 
 						that.capability_indicator.setCapability(data.name, 'loaded');
-					});
+
+					}
 				});
 			} else {
 				that.capability_indicator.setCapability(data.name, 'nofile');

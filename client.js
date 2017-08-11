@@ -7,7 +7,7 @@ require('alchemymvc');
 // @todo: this should be expanded and integrated into alchemy itself
 process.on('uncaughtException', function(error) {
 	// Indicate we caught an exception
-	log.error('Uncaught Exception!', {err: error});
+	alchemy.printLog('error', ['Uncaught Exception!', String(error), error], {err: error, level: -2});
 });
 
 alchemy.start({client_mode: true}, function ready() {

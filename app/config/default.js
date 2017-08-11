@@ -1,6 +1,6 @@
 module.exports = {
 	// Multicast ipv4 address
-	multicast_ipv4: '230.185.192.47',
+	multicast_ipv4: '224.0.192.47',
 
 	// Start listening to multicast on boot?
 	multicast_on_boot: true,
