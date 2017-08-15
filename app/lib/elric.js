@@ -69,17 +69,24 @@ Elric.setMethod(function init() {
 
 	this._inited = true;
 
+	// @Fix bug in Janeway: when janeway doesn't start,
+	// this doesn't exist and indicators throw an error
+	if (!__Janeway.indicator_area) {
+		__Janeway.indicator_area = {
+			indicators_by_name : {},
+			indicators         : []
+		};
+	}
+
 	// Set the terminal title
 	alchemy.Janeway.setTitle('Elric Client "' + this.hostname + '"');
 
 	// Create the connection indicator
-	this.connection_indicator = __Janeway.addIndicator({type: 'connection', name: 'connection'});
+	this.connection_indicator = this.addIndicator({type: 'connection', name: 'connection'});
 
 	// Add the capabilities indicator
-	this.capability_indicator = __Janeway.addIndicator({type: 'capability', name: 'capabilities'});
-
+	this.capability_indicator = this.addIndicator({type: 'capability', name: 'capabilities'});
 });
-
 
 /**
  * Get the time offset (compared to the server)
@@ -115,6 +122,22 @@ Elric.setProperty(function latency() {
 	}
 
 	return 0;
+});
+
+/**
+ * Create a janeway indicator
+ *
+ * @author   Jelle De Loecker <jelle@develry.be>
+ * @since    1.0.0
+ * @version  1.0.0
+ */
+Elric.setMethod(function addIndicator(options) {
+	try {
+		return __Janeway.addIndicator(options);
+	} catch (err) {
+		console.log(err)
+		return null;
+	}
 });
 
 /**
