@@ -166,7 +166,7 @@ Elric.setMethod(function config(key, val, callback) {
  */
 Elric.setMethod(function storeConfig(callback) {
 	this.store_queue.add(function doStore(done) {
-		fs.writeFile('elric_config.json', JSON.dry(conf), function stored(err) {
+		fs.writeFile('elric_config.json', JSON.dry(conf, null, 4), function stored(err) {
 
 			if (err) {
 				log.error('Failed to store config file: ' + err);
