@@ -9,6 +9,7 @@
     "mediaconversion"    : "~0.1.0",
     "npm-programmatic"   : "~0.0.6",
     "sonority"           : ">=0.1.0-alpha",
-    "usb"                : "~1.2.0"
+    "usb"                : "~1.2.0",
+    "rpi-gpio"           : "~0.8.1"
   }
 }
