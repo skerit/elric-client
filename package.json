@@ -5,7 +5,7 @@
   "private": true,
   "dependencies": {
     "alchemymvc"         : "~0.4.1",
-    "bcrypt"             : "~1.0.2",
+    "bcrypt"             : "~5.0.0",
     "mediaconversion"    : "~0.1.0",
     "npm-programmatic"   : "~0.0.6",
     "sonority"           : ">=0.1.0-alpha",
